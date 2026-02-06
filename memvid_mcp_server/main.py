@@ -1197,9 +1197,19 @@ if __name__ == "__main__":
     # Set up signal handlers
     setup_signal_handlers()
 
+    # Get server configuration from environment
+    server_mode = os.getenv("MCP_SERVER_MODE", "stdio").lower()
+    host = os.getenv("MCP_SERVER_HOST", "0.0.0.0")
+    port = int(os.getenv("MCP_SERVER_PORT", "8000"))
+
     try:
-        logger.info("Starting memvid MCP server")
-        mcp.run()
+        if server_mode == "sse":
+            logger.info(f"Starting memvid MCP server in SSE mode on {host}:{port}")
+            logger.info(f"Connect clients to: http://{host}:{port}/sse")
+            mcp.run(transport="sse", host=host, port=port)
+        else:
+            logger.info("Starting memvid MCP server in stdio mode")
+            mcp.run()
     except KeyboardInterrupt:
         logger.info("Server interrupted by user")
     except Exception as e:

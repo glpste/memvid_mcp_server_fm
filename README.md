@@ -104,6 +104,41 @@ cp example_mcp_config.json ~/.config/claude-desktop/config.json
 
 3. Restart Claude Desktop to load the server.
 
+### Remote MCP Server (Optional)
+
+The server can run as a **remote MCP server** accessible over HTTP using Server-Sent Events (SSE). This allows multiple clients to connect over the network.
+
+#### Running as Remote Server
+
+1. Set environment variables:
+```bash
+export MCP_SERVER_MODE=sse
+export MCP_SERVER_HOST=0.0.0.0  # Listen on all interfaces (default)
+export MCP_SERVER_PORT=8000     # Port to listen on (default: 8000)
+```
+
+2. Start the server:
+```bash
+cd /path/to/memvid_mcp_server
+source .venv/bin/activate
+python memvid_mcp_server/main.py
+```
+
+3. Connect from clients using the SSE endpoint:
+```
+http://your-server-host:8000/sse
+```
+
+#### Server Mode Environment Variables
+
+- `MCP_SERVER_MODE`: Server transport mode
+  - `stdio` (default): Local communication via stdin/stdout - use with Claude Desktop
+  - `sse`: Remote server via HTTP Server-Sent Events - for network access
+- `MCP_SERVER_HOST`: Host to bind to when in SSE mode (default: `0.0.0.0`)
+- `MCP_SERVER_PORT`: Port to listen on when in SSE mode (default: `8000`)
+
+**Note**: In stdio mode (default), the server communicates via stdin/stdout for local MCP clients like Claude Desktop. In SSE mode, it runs as an HTTP server for remote access.
+
 ### File Management API Integration (Optional)
 
 To enable automatic remote storage of video memories, add these environment variables to your MCP config:
@@ -292,6 +327,25 @@ The server implements comprehensive stdout redirection to prevent any library ou
    - Default timeout is 5 minutes for uploads
    - Check network bandwidth and stability
    - Consider using a closer/faster FM API endpoint
+
+### Remote Server Issues
+
+1. **SSE Mode Not Working**
+   - Ensure `MCP_SERVER_MODE=sse` is set
+   - Check that the port is not already in use: `lsof -i :8000`
+   - Verify firewall allows connections on the specified port
+   - Check server logs for binding errors
+
+2. **Client Connection Failures**
+   - Verify the SSE endpoint URL: `http://host:port/sse`
+   - Test with curl: `curl http://localhost:8000/sse`
+   - Check network connectivity between client and server
+   - Ensure no reverse proxy is interfering with SSE connections
+
+3. **Permission Denied on Port**
+   - Ports below 1024 require root privileges
+   - Use port 8000 or higher (default: 8000)
+   - Or run with sudo (not recommended for production)
 
 ## 📄 License
 

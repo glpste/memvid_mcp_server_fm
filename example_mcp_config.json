@@ -12,6 +12,12 @@
       "env": {
         "PYTHONPATH": "/home/ty/Repositories/memvid_mcp_server",
         "PYTHONWARNINGS": "ignore",
+        "_comment_server_mode": "Use 'stdio' for local (default) or 'sse' for remote server",
+        "MCP_SERVER_MODE": "stdio",
+        "_comment_sse_config": "Only used when MCP_SERVER_MODE=sse",
+        "MCP_SERVER_HOST": "0.0.0.0",
+        "MCP_SERVER_PORT": "8000",
+        "_comment_fm": "File Management API integration (optional)",
         "FM_UPLOAD_ENABLED": "false",
         "FM_API_BASE_URL": "https://your-fm-api.example.com",
         "FM_REALM_ID": "your-realm-id",

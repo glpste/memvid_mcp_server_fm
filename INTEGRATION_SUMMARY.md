@@ -1,7 +1,9 @@
-# File Management API Integration - Implementation Summary
+# File Management API & Remote Server - Implementation Summary
 
 ## Overview
-Successfully integrated REST API client for remote storage of video memory files per-project.
+Successfully integrated:
+1. REST API client for remote storage of video memory files per-project
+2. Remote MCP server capability via SSE (Server-Sent Events) transport
 
 ## Changes Made
 
@@ -12,9 +14,9 @@ Successfully integrated REST API client for remote storage of video memory files
 4. **fm_upload.py** - Background upload task manager with queue
 
 ### Modified Files
-1. **main.py** - Integrated FM modules, added 4 new MCP tools, automatic upload trigger
-2. **README.md** - Updated with FM features, configuration, and troubleshooting
-3. **example_mcp_config.json** - Added FM environment variables
+1. **main.py** - Integrated FM modules, added 4 new MCP tools, automatic upload trigger, **added remote server support**
+2. **README.md** - Updated with FM features, remote server configuration, and troubleshooting
+3. **example_mcp_config.json** - Added FM and server mode environment variables
 4. **pyproject.toml** - Added dependencies (httpx, python-keycloak, openapi-python-client)
 
 ### Generated Files
@@ -46,6 +48,8 @@ This keeps the repository clean and ensures the client is always up-to-date with
 
 ### Configuration
 All features are **optional** and controlled via environment variables:
+
+**File Management Integration:**
 - `FM_UPLOAD_ENABLED` - Enable/disable feature (default: false)
 - `FM_API_BASE_URL` - File Management API endpoint
 - `FM_REALM_ID` - Realm for file storage
@@ -55,6 +59,11 @@ All features are **optional** and controlled via environment variables:
 - `FM_KEYCLOAK_CLIENT_ID` - OAuth2 client ID
 - `FM_KEYCLOAK_CLIENT_SECRET` - OAuth2 client secret
 
+**Remote Server Mode:**
+- `MCP_SERVER_MODE` - Server transport: `stdio` (default, local) or `sse` (remote HTTP)
+- `MCP_SERVER_HOST` - Host to bind to in SSE mode (default: `0.0.0.0`)
+- `MCP_SERVER_PORT` - Port to listen on in SSE mode (default: `8000`)
+
 ## Design Decisions
 
 1. **Optional Integration** - Server works without FM configuration
@@ -62,6 +71,7 @@ All features are **optional** and controlled via environment variables:
 3. **Graceful Degradation** - Upload failures don't affect local video memory creation
 4. **Project Organization** - Files tagged with project name in metadata
 5. **Automatic & Manual** - Both automatic (on build) and manual (via tool) upload options
+6. **Dual Transport** - Support both local (stdio) and remote (SSE) operation modes
 
 ## Security
 
