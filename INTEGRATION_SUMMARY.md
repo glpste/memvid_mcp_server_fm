@@ -19,7 +19,17 @@ Successfully integrated REST API client for remote storage of video memory files
 
 ### Generated Files
 - **fm_openapi.yml** - Downloaded OpenAPI specification
-- **fm_client/** - Generated Python client from OpenAPI spec (not tracked in git)
+- **fm_client/** - Generated Python client (NOT tracked in git, generate at build time)
+
+## Build-Time Client Generation
+
+The FM API client is **not committed to the repository** and must be generated:
+
+1. **During Development**: Run `python scripts/generate_fm_client.py`
+2. **Build Script**: Located at `scripts/generate_fm_client.py`
+3. **Output**: `memvid_mcp_server/fm_client/` (added to `.gitignore`)
+
+This keeps the repository clean and ensures the client is always up-to-date with the OpenAPI spec.
 
 ## Features Implemented
 
@@ -71,9 +81,10 @@ All features are **optional** and controlled via environment variables:
 ## Notes
 
 - Token expiration handling omitted per user request
-- Generated OpenAPI client in `fm_client/` not tracked in git
+- Generated OpenAPI client NOT tracked in git - must be generated with `python scripts/generate_fm_client.py`
 - Upload timeout set to 5 minutes for large files
 - Retry logic: 3 attempts with exponential backoff (1s, 2s, 4s)
+- Client generation script: `scripts/generate_fm_client.py`
 
 ## Next Steps (Optional)
 

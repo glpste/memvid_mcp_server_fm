@@ -50,6 +50,7 @@ Issues = "https://github.com/angrysky56/memvid-mcp-server/issues"
 
 [project.scripts]
 memvid-mcp-server = "memvid_mcp_server.main:main"
+generate-fm-client = "scripts.generate_fm_client:generate_fm_client"
 
 [tool.hatch.version]
 path = "memvid_mcp_server/__about__.py"

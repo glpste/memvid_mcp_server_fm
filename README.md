@@ -38,7 +38,17 @@ source .venv/bin/activate
 ```bash
 uv add -e .
 ```
-### H.265 Encoding with Docker
+
+### 3. Generate FM API Client (Required for Remote Storage)
+If you plan to use the File Management API integration, generate the client:
+```bash
+source .venv/bin/activate
+python scripts/generate_fm_client.py
+```
+
+**Note**: This step is required only if you want to use remote storage features. The server will work without it, but FM integration tools will not be available.
+
+### 4. H.265 Encoding with Docker
 
 The server automatically manages Docker installation and lifecycle:
 
@@ -55,9 +65,10 @@ No manual Docker setup or external repository paths are required.h265` using the
 
 Once the Docker image is built, `memvid` will automatically detect and use it when `video_codec='h265'` is specified in `build_video`.
 
-### 3. Test the server (optional)
+### 5. Test the server (optional)
 ```bash
 uv run python memvid_mcp_server/main.py
+```
 ```
 
 ## ⚙️ Configuration
@@ -249,7 +260,13 @@ The server implements comprehensive stdout redirection to prevent any library ou
 
 ### File Management (FM) Integration Issues
 
-1. **Uploads Not Working**
+1. **FM Client Not Generated**
+   - Run `python scripts/generate_fm_client.py` to generate the API client
+   - Ensure `openapi-python-client` is installed: `uv add openapi-python-client`
+   - Check that `fm_openapi.yml` exists in `memvid_mcp_server/` directory
+   - Generated client will be in `memvid_mcp_server/fm_client/` (gitignored)
+
+2. **Uploads Not Working**
    - Check that `FM_UPLOAD_ENABLED=true` is set
    - Verify all FM environment variables are correctly configured
    - Check logs for authentication errors
