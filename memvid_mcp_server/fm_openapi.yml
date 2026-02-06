@@ -1,0 +1,1456 @@
+openapi: 3.0.2
+info:
+  title: Knowledge File Management
+  description: Knowledge File Management is a RESTful Microservice that provides functionality to store and manage arbitrary files via REST API.
+    Binary file data is stored in a configurable S3-compliant backend while folder structures and file metadata are abstracted on a relational database level.
+  contact:
+    name: SABIO GmbH
+    url: https://www.getsabio.com
+    email: contact@serviceware-se.com
+  version: 3.2.0
+
+security:
+  - bearerAuth: []
+#----------------------------------------------------------------------------------------------------------------------#
+#                                                                                                                      #
+#       PATHS                                                                                                          #
+#                                                                                                                      #
+#----------------------------------------------------------------------------------------------------------------------#
+
+paths:
+
+  # /document ---------------------------------------------------------------------------------------------------------#
+  /document/v2/{id}:
+    get:
+      tags:
+        - Document
+      operationId: getDocument
+      summary: Retrieve an existing document
+      parameters:
+        - name: X-Realm-ID
+          description: The realm ID of the document
+          in: header
+          required: true
+          schema:
+            type: string
+        - name: id
+          description: The ID of the document
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The document was retrieved successfully
+          content:
+            application/json; charset=utf-8:
+              schema:
+                $ref: '#/components/schemas/Document'
+        default:
+          $ref: '#/components/responses/Error'
+
+    put:
+      tags:
+        - Document
+      operationId: updateDocument
+      summary: Update an existing document
+      parameters:
+        - name: X-Realm-ID
+          description: The realm ID of the document
+          in: header
+          required: true
+          schema:
+            type: string
+        - name: id
+          description: The ID of the document
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              properties:
+                document:
+                  $ref: '#/components/schemas/Document'
+      responses:
+        '200':
+          description: The document was updated successfully
+          content:
+            application/json; charset=utf-8:
+              schema:
+                $ref: '#/components/schemas/Document'
+        default:
+          $ref: '#/components/responses/Error'
+
+    delete:
+      tags:
+        - Document
+      operationId: deleteDocument
+      summary: Delete an existing document as well as the associated file
+      parameters:
+        - name: X-Realm-ID
+          description: The realm ID of the document
+          in: header
+          required: true
+          schema:
+            type: string
+        - name: id
+          description: The ID of the document
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The document was deleted successfully
+          content:
+            application/json; charset=utf-8:
+              schema:
+                $ref: '#/components/schemas/Document'
+        default:
+          $ref: '#/components/responses/Error'
+
+  /document/v2/search:
+    post:
+      tags:
+        - Document
+      operationId: search
+      summary: Perform a basic search over the titles, descriptions and filenames of all documents of a realm
+      parameters:
+        - name: X-Realm-ID
+          description: The ID of the realm you want to search in
+          in: header
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json; charset=utf-8:
+            schema:
+              properties:
+                query:
+                  type: string
+                pageable:
+                  $ref: '#/components/schemas/PageRequest'
+              required:
+                - query
+                - pageable
+      responses:
+        '200':
+          description: The search query was executed successfully
+          content:
+            application/json; charset=utf-8:
+              schema:
+                $ref: '#/components/schemas/Page'
+        default:
+          $ref: '#/components/responses/Error'
+
+  /document/v2/path/{id}:
+    get:
+      tags:
+        - Document
+      operationId: getPath
+      summary: Retrieve the folder path of an existing document
+      parameters:
+        - name: X-Realm-ID
+          description: The realm ID of the document
+          in: header
+          required: true
+          schema:
+            type: string
+        - name: id
+          description: The ID of the document
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The path was retrieved successfully
+          content:
+            application/json; charset=utf-8:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PathElement'
+        default:
+          $ref: '#/components/responses/Error'
+
+  /document/v2/duplicates:
+    post:
+      tags:
+        - Document
+      operationId: getDuplicates
+      summary: Retrieve all possible duplicates of given sets of CRC32 and MD5 checksums
+      parameters:
+        - name: X-Realm-ID
+          description: The ID of the realm you want to search in
+          in: header
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json; charset=utf-8:
+            schema:
+              $ref: '#/components/schemas/DuplicatesRequest'
+      responses:
+        '200':
+          description: The duplicates were retrieved successfully
+          content:
+            application/json; charset=utf-8:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Document'
+        default:
+          $ref: '#/components/responses/Error'
+
+  # /folder -----------------------------------------------------------------------------------------------------------#
+  /folder/v2:
+    post:
+      tags:
+        - Folder
+      operationId: createFolder
+      summary: Create a new folder
+      parameters:
+        - name: X-Realm-ID
+          description: The ID of the realm you want to create the folder for
+          in: header
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              properties:
+                folder:
+                  $ref: '#/components/schemas/Folder'
+      responses:
+        '201':
+          description: The folder was created successfully
+          content:
+            application/json; charset=utf-8:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Folder'
+        default:
+          $ref: '#/components/responses/Error'
+
+  /folder/v2/tree:
+    get:
+      tags:
+        - Folder
+      operationId: getTree
+      summary: Retrieve a tree-like representation of the entire folder structure of a realm, consisting of nested lists of folders
+      parameters:
+        - name: X-Realm-ID
+          description: The ID of the realm you want to retrieve the tree for
+          in: header
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The tree was retrieved successfully
+          content:
+            application/json; charset=utf-8:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Folder'
+        default:
+          $ref: '#/components/responses/Error'
+
+  /folder/v2/{id}:
+    put:
+      tags:
+        - Folder
+      operationId: updateFolder
+      summary: Update an existing folder
+      parameters:
+        - name: X-Realm-ID
+          description: The realm ID of the folder
+          in: header
+          required: true
+          schema:
+            type: string
+        - name: id
+          description: The ID of the folder
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              properties:
+                folder:
+                  $ref: '#/components/schemas/Folder'
+      responses:
+        '200':
+          description: The folder was updated successfully
+          content:
+            application/json; charset=utf-8:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Folder'
+        default:
+          $ref: '#/components/responses/Error'
+
+    delete:
+      tags:
+        - Folder
+      operationId: deleteFolder
+      summary: Delete an existing folder
+      parameters:
+        - name: X-Realm-ID
+          description: The realm ID of the folder
+          in: header
+          required: true
+          schema:
+            type: string
+        - name: id
+          description: The ID of the folder
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The folder was deleted successfully
+          content:
+            application/json; charset=utf-8:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Folder'
+        default:
+          $ref: '#/components/responses/Error'
+
+  /folder/v2/content/{id}:
+    get:
+      tags:
+        - Folder
+      operationId: getFolderContent
+      summary: Retrieve all contents of a folder, including both folders and documents
+        If the 'endId' parameter is provided and the path between the folder identified by endId and the root node
+        contains the folder identified by 'folderId', a nested-list representation of all the contents along this
+        path is returned by respectively populating the 'children' property of the required folders
+      parameters:
+        - name: X-Realm-ID
+          description: The realm ID of the folder
+          in: header
+          required: true
+          schema:
+            type: string
+        - name: id
+          description: The ID of the folder
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: endId
+          description: the ID of the folder up to which the path content shall be retrieved
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The folder content was retrieved successfully
+          content:
+            application/json; charset=utf-8:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/BaseEntity'
+        default:
+          $ref: '#/components/responses/Error'
+
+  /folder/v2/updates:
+    get:
+      tags:
+        - Folder
+      operationId: getUpdateStatus
+      summary: Retrieve the epoch timestamp (milliseconds included) at which any content of the folder structure of a realm has last been updated
+      parameters:
+        - name: X-Realm-ID
+          description: The ID of the realm you want to retrieve the update status for
+          in: header
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The folder update status was retrieved successfully
+          content:
+            text/plain; charset=utf-8:
+              schema:
+                type: string
+        default:
+          $ref: '#/components/responses/Error'
+
+  /folder/v2/documents/{id}:
+    get:
+      tags:
+        - Folder
+      operationId: getFolderDocumentIds
+      summary: Retrieve the IDs of all documents inside of a folder and all of its subfolders
+      parameters:
+        - name: X-Realm-ID
+          description: The ID of the realm you want to retrieve the document IDs for
+          in: header
+          required: true
+          schema:
+            type: string
+        - name: id
+          description: The ID of the folder
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The document IDs were retrieved successfully
+          content:
+            application/json; charset=utf-8:
+              schema:
+                type: array
+                items:
+                  type: string
+        default:
+          $ref: '#/components/responses/Error'
+
+  # /file -------------------------------------------------------------------------------------------------------------#
+  /file/v2:
+    post:
+      tags:
+        - File
+      operationId: uploadFile
+      summary: Uploads a new file to FM and implicitly creates a new Document handler for it.
+        Checksums, mimetypes etc. will be calculated automatically.
+        The "title", "parentFolderId", "description" and "metaInfo" fields of the given document will be respected
+        during the upload process.
+        
+        When virus scanning is enabled for the target FM deployment, the file will be scanned for viruses and
+        rejected in case a virus is found.
+        
+        The virus scan may be bypassed by providing a value for the "X-AV-Privilege" header that is found in the realm's
+        antiVirusWhitelist. An empty value will always be virus scanned, an unknown value will always be rejected.
+        
+        When preview conversion is enabled for the target FM deployment, if the file's mimetype is eligible for
+        preview conversion (e.g. an MS Office or OpenOffice file), a preview PDF version of the file is generated
+        and stored alongside the original
+      parameters:
+        - name: X-Realm-ID
+          description: The ID of the realm you want to upload the file to
+          in: header
+          required: true
+          schema:
+            type: string
+        - name: X-AV-Privilege
+          description: Given value will be checked against the realm's antiVirusWhitelist. If the value is found, the file
+            will be uploaded without virus scan.
+          in: header
+          required: false
+          schema:
+            type: string
+            default: ''
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              properties:
+                file:
+                  description: The file to upload
+                  type: string
+                  format: binary
+                document:
+                  $ref: '#/components/schemas/Document'
+              required:
+                - file
+                - document
+      responses:
+        '201':
+          description: The file was uploaded successfully
+          content:
+            application/json; charset=utf-8:
+              schema:
+                $ref: '#/components/schemas/Document'
+        default:
+          $ref: '#/components/responses/Error'
+
+  /file/v2/{id}:
+    get:
+      tags:
+        - File
+      operationId: downloadFile
+      parameters:
+        - name: X-Realm-ID
+          description: The realm ID of the file you want to download
+          in: header
+          required: true
+          schema:
+            type: string
+        - name: id
+          description: The ID of the file
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: download
+          description: Whether the content-disposition of the response be "download" or "inline"
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '200':
+          description: The file was downloaded successfully. 
+            As opposed to this definition, the 'content-type' header will be set to the actual mimetype of the file.
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        default:
+          $ref: '#/components/responses/Error'
+    put:
+      tags:
+        - File
+      operationId: updateFile
+      summary: Updates and existing file and associated document.
+        The existing file associated with the given ID will be replaced by the given file.
+        The "title", "parentFolderId", "description" and "metaInfo" fields of the given document will be respected
+        during the update process.
+      parameters:
+        - name: X-Realm-ID
+          description: The ID of the realm you want to update the file in
+          in: header
+          required: true
+          schema:
+            type: string
+        - name: X-AV-Privilege
+          description: Given value will be checked against the realm's antiVirusWhitelist. If the value is found, the file
+            will be uploaded without virus scan.
+          in: header
+          required: false
+          schema:
+            type: string
+            default: ''
+        - name: id
+          description: The ID of the document and file you want to update
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              properties:
+                file:
+                  description: The file to upload
+                  type: string
+                  format: binary
+                document:
+                  $ref: '#/components/schemas/Document'
+              required:
+                - file
+                - document
+      responses:
+        '200':
+          description: The file was updated successfully
+          content:
+            application/json; charset=utf-8:
+              schema:
+                $ref: '#/components/schemas/Document'
+        default:
+          $ref: '#/components/responses/Error'
+
+  /file/v2/preview/{id}:
+    get:
+      tags:
+        - File
+      operationId: downloadPreview
+      description: Download the converted preview version of a file if available. 
+        If the preview is not available, the error response will contain the status of the preview conversion.
+      parameters:
+        - name: X-Realm-ID
+          description: The realm ID of the file you want to download the preview for
+          in: header
+          required: true
+          schema:
+            type: string
+        - name: id
+          description: The ID of the file
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: download
+          description: Whether the content-disposition of the response be "download" or "inline"
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '200':
+          description: The preview was downloaded successfully
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        default:
+          $ref: '#/components/responses/Error'
+
+  /file/v2/url/{id}:
+    get:
+      tags:
+        - File
+      operationId: getUrls
+      summary: Retrieve the isTemporary URLs to a file as well as the converted preview version if the latter is available.
+      parameters:
+        - name: X-Realm-ID
+          description: The realm ID of the document/file you want to retrieve the URLs for
+          in: header
+          required: true
+          schema:
+            type: string
+        - name: id
+          description: The ID of the document/file
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: download
+          description: Whether the content-disposition of the URLs shall be "download" or "inline"
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '200':
+          description: The URLs were generated successfully
+          content:
+            application/json; charset=utf-8:
+              schema:
+                $ref: '#/components/schemas/FileUrls'
+        default:
+          $ref: '#/components/responses/Error'
+
+  /file/v2/temp:
+    post:
+      tags:
+        - File
+      operationId: uploadTempFile
+      summary: Uploads a new isTemporary file to FM. The file will not be associated with any document or folder and will be deleted
+        automatically after 10 minutes.
+        
+        When virus scanning is enabled for the target FM deployment, the file will be scanned for viruses and
+        rejected in case a virus is found.
+        
+        The virus scan may be bypassed by providing a value for the "X-AV-Privilege" header that is found in the realm's
+        antiVirusWhitelist. An empty value will always be virus scanned, an unknown value will always be rejected.
+      parameters:
+        - name: download
+          description: Whether the content-disposition of the response when accessing the file shall be "download" or "inline"
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: true
+        - name: X-Realm-ID
+          description: The ID of the realm you want to upload the file to
+          in: header
+          required: true
+          schema:
+            type: string
+        - name: X-AV-Privilege
+          description: Given value will be checked against the realm's antiVirusWhitelist. If the value is found, the file
+            will be uploaded without virus scan.
+          in: header
+          required: false
+          schema:
+            type: string
+            default: ''
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              properties:
+                file:
+                  description: The file to upload
+                  type: string
+                  format: binary
+              required:
+                - file
+      responses:
+        '201':
+          description: The isTemporary file was uploaded successfully
+          content:
+            application/json; charset=utf-8:
+              schema:
+                $ref: '#/components/schemas/ResourceToken'
+        default:
+          $ref: '#/components/responses/Error'
+
+  /file/text/{id}:
+    get:
+      tags:
+        - FileContent
+      operationId: downloadTextContent
+      summary: |
+        Download the extracted text content of a file if available. 
+        The content type must be one of the supported text content types defined in FileTextContentMode.
+      parameters:
+        - name: X-Realm-ID
+          description: The realm ID of the file whose text content you want to download
+          in: header
+          required: true
+          schema:
+            type: string
+        - name: id
+          description: The ID of the file
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: mode
+          description: The mode for the text content to download
+          in: query
+          required: true
+          schema:
+            $ref: '#/components/schemas/FileTextContentMode'
+        - name: download
+          description: Whether the content-disposition of the response be "download" or "inline"
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '200':
+          description: The file was downloaded successfully.
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        default:
+          $ref: '#/components/responses/Error'
+
+  # /resource ---------------------------------------------------------------------------------------------------------#
+  /resource/token/{id}:
+    post:
+      tags:
+        - Resource
+      operationId: createToken
+      summary: Create a isTemporary download token for a resource/file
+      parameters:
+        - name: X-Realm-ID
+          description: The realm ID of the file you want to retrieve the download token for
+          in: header
+          required: true
+          schema:
+            type: string
+        - name: id
+          description: The ID of the resource/file
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: download
+          description: Whether the content-disposition of the response be "attachment" or "inline"
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: false
+        - name: preview
+          description: Whether the token shall be generated for the preview version of the resource/file
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '201':
+          description: The download token was successfully created
+          content:
+            application/json; charset=utf-8:
+              schema:
+                $ref: '#/components/schemas/ResourceToken'
+        default:
+          $ref: '#/components/responses/Error'
+
+  /resource/{token}:
+    get:
+      tags:
+        - Resource
+      operationId: download
+      summary: Download a resource/file using a isTemporary download token
+      parameters:
+        - name: token
+          description: The download token created via [createToken](#/paths/file/v2/token/{id})
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The file was downloaded successfully
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        default:
+          $ref: '#/components/responses/Error'
+
+  # /realm ------------------------------------------------------------------------------------------------------------#
+  /realm/v2:
+    post:
+      tags:
+        - Realm
+      operationId: createRealm
+      summary: Create a new realm with a given name
+      parameters:
+        - name: name
+          description: The name of the realm
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 255
+      responses:
+        '201':
+          description: The realm was created successfully
+          content:
+            application/json; charset=utf-8:
+              schema:
+                $ref: '#/components/schemas/Realm'
+        default:
+          $ref: '#/components/responses/Error'
+
+  /realm/v2/{id}:
+    get:
+      tags:
+        - Realm
+      operationId: getRealm
+      summary: Retrieve a realm with its settings
+      parameters:
+        - name: id
+          description: The ID of the realm you want to retrieve
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The realm was retrieved successfully
+          content:
+            application/json; charset=utf-8:
+              schema:
+                $ref: '#/components/schemas/Realm'
+        default:
+          $ref: '#/components/responses/Error'
+
+    put:
+      tags:
+        - Realm
+      operationId: updateRealm
+      summary: Update the settings of a realm. Provide null or an empty dictionary for the given Realm's settings to
+        reset to default settings.
+      parameters:
+        - name: id
+          description: The ID of the realm you want to update
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json; charset=utf-8:
+            schema:
+              $ref: '#/components/schemas/Realm'
+      responses:
+        '200':
+          description: The settings were updated successfully
+          content:
+            application/json; charset=utf-8:
+              schema:
+                $ref: '#/components/schemas/Realm'
+        default:
+          $ref: '#/components/responses/Error'
+
+    delete:
+      tags:
+        - Realm
+      operationId: deleteRealm
+      summary: Delete a realm alongside all of its associated content
+      parameters:
+        - name: id
+          description: The ID of the realm you want to delete
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The realm was deleted successfully
+          content:
+            application/json; charset=utf-8:
+              schema:
+                $ref: '#/components/schemas/Realm'
+        default:
+          $ref: '#/components/responses/Error'
+
+  # /systool ----------------------------------------------------------------------------------------------------------#
+  /systool:
+    post:
+      tags:
+          - SystemTool
+      operationId: execute
+      summary: Execute a system tool
+      parameters:
+        - name: X-Realm-ID
+          description: The realm ID to execute the system tool for
+          in: header
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json; charset=utf-8:
+            schema:
+              $ref: '#/components/schemas/SystemTool'
+      responses:
+        '200':
+          description: The system tool was executed
+          content:
+            application/json; charset=utf-8:
+              schema:
+                $ref: '#/components/schemas/SystemTool'
+        default:
+          $ref: '#/components/responses/Error'
+
+
+
+  # /health -----------------------------------------------------------------------------------------------------------#
+  /actuator/health/fm:
+    get:
+      tags:
+        - Health
+      operationId: getHealth
+      summary: Retrieve the current version of the FM service as well the health status of all connected middleware
+      responses:
+        '200':
+          description: The health status was retrieved successfully
+          content:
+            application/json; charset=utf-8:
+              schema:
+                $ref: '#/components/schemas/Health'
+        default:
+          $ref: '#/components/responses/Error'
+
+#----------------------------------------------------------------------------------------------------------------------#
+#                                                                                                                      #
+#       COMPONENTS                                                                                                     #
+#                                                                                                                      #
+#----------------------------------------------------------------------------------------------------------------------#
+
+components:
+
+  # MODELS/SCHEMAS ----------------------------------------------------------------------------------------------------#
+
+  schemas:
+    # Base entity -----------------------------------------------------------------------------------------------------#
+    BaseEntity:
+      description: The base parent DTO of the File Management service, offering the shared attributes needed by both
+        [Documents](#/components/schemas/Document) and [Folders](#/components/schemas/Folder)
+      discriminator:
+        propertyName: objectType
+        mapping:
+          FOLDER: '#/components/schemas/Folder'
+          DOCUMENT: '#/components/schemas/Document'
+      properties:
+        id:
+          type: string
+          description: The ID of the entity
+        parentFolderId:
+          type: string
+          description: The ID of this entity's parent folder. This is the folder the entity resides in.
+        title:
+          type: string
+          description: The title of the entity
+        created:
+          type: string
+          format: date-time
+          description: The date the entity was created
+        lastModified:
+          type: string
+          format: date-time
+          description: The date the entity was last modified
+        isFolder:
+          type: boolean
+          description: Whether this entity is a folder
+      required:
+        - title
+
+    # Path ------------------------------------------------------------------------------------------------------------#
+    PathElement:
+      type: object
+      description: A minimal representation of a Folder, used in Lists to display the path to a document on outgoing DocumentResources.
+      properties:
+        id:
+          type: string
+          description: The ID of the folder
+        title:
+          type: string
+          description: The title of the folder
+      required:
+        - id
+        - title
+
+    # Document --------------------------------------------------------------------------------------------------------#
+    Document:
+      description: A document represents a file that has been uploaded to the File Management Service.
+        While the actual file resides in the storage system, the document holds all information about the file
+        that has been provided or collected.
+      allOf:
+        - $ref: '#/components/schemas/BaseEntity'
+      properties:
+        filename:
+          type: string
+          description: The name of the file associated with this document
+        fileSize:
+          type: integer
+          format: int64
+          description: The size of the file associated with this document, in bytes
+        extension:
+          type: string
+          description: The extension of the file associated with this document
+        mimeType:
+          type: string
+          description: The mime type of the file associated with this document
+        isBinary:
+          type: boolean
+          description: Whether the file associated with this document has binary content
+        metaInfo:
+          type: object
+          additionalProperties: true
+          description: Arbitrary, user-controlled meta information about the document in the form of a dictionary
+        description:
+          type: string
+          description: An arbitrary description of the document
+        crc32:
+          type: integer
+          format: int64
+          description: The crc32 checksum of the file associated with this document
+        md5:
+          type: string
+          description: The md5 checksum of the file associated with this document
+        textContentAvailable:
+          type: boolean
+          description: Whether extracted text content is available for the file associated with this document
+        path:
+          type: array
+          description: To folder path up to this document
+          items:
+            $ref: '#/components/schemas/PathElement'
+        previewStatus:
+          $ref: '#/components/schemas/PreviewStatus'
+
+    # Folder ----------------------------------------------------------------------------------------------------------#
+    Folder:
+      description: A Folder in the File Management's virtual folder structure, comparable to directories in local file systems
+      allOf:
+        - $ref: '#/components/schemas/BaseEntity'
+      properties:
+        isEmpty:
+          type: boolean
+          description: Whether this folder is empty
+          default: true
+        children:
+          type: array
+          description: The entities contained in this folder. These may be both [Documents](#/components/schemas/Document) and [Folders](#/components/schemas/Folder)
+          items:
+            $ref: '#/components/schemas/BaseEntity'
+
+    # URLs ------------------------------------------------------------------------------------------------------------#
+    FileUrls:
+      description: Provides the download or inline URL(s) to a file uploaded to the File Management Service.
+      properties:
+        url:
+          type: string
+          description: The URL of the original file
+        preview:
+          type: string
+          description: The URL of the converted preview version of the file, if available. If unavailable, the preview
+            conversion status of the file, see [PreviewStatus](#/components/schemas/PreviewStatus) for possible
+            status values.
+
+    # Preview Status --------------------------------------------------------------------------------------------------#
+    PreviewStatus:
+      type: string
+      enum:
+        - unsupported
+        - done
+        - none
+        - pending
+        - failed
+
+    # File Content ----------------------------------------------------------------------------------------------------#
+    FileTextContentMode:
+      type: string
+      description: | 
+        The type of file text content to download.
+        full: The full text content of the file as a single string.
+        summary: A summarized version of the file's text content.
+      enum:
+        - full
+        - summary
+
+    # System Tools ----------------------------------------------------------------------------------------------------#
+    SystemTool:
+      description: A system tool that can be executed to perform a specific task for a single realm, e.g. cleanup operations
+      properties:
+        name:
+          type: string
+          description: The name of the system tool to execute. See [SystemTools](#/components/schemas/SystemTools)
+        realmId:
+          type: string
+          description: The ID of the realm the system tool shall be or was executed for
+        result:
+          $ref: '#/components/schemas/SystemToolResult'
+        params:
+          $ref: '#/components/schemas/SystemToolParams'
+      required:
+        - name
+        - realmId
+
+    SystemToolParams:
+      type: object
+      description: The parameters of a system tool
+      properties:
+        ids:
+          type: array
+          items:
+            type: string
+          default: []
+          description: The IDs of the entities the system tool shall be executed for. Leave empty to execute for all
+            eligible entities.
+      required:
+        - ids
+
+    SystemToolResult:
+      type: object
+      description: The result of a system tool's execution
+      properties:
+        text:
+          type: string
+          description: The result of the system tool's execution
+        status:
+          type: string
+          description: The status of the system tool's execution
+          enum:
+              - success
+              - error
+              - skipped
+        duration:
+          type: string
+          description: The duration of the system tool's execution
+
+    SystemTools:
+      description: A collection of system tools that can be executed to perform specific tasks, e.g. cleanup operations
+      type: string
+      enum:
+        - resetPreviews
+        - syncPathCache
+        - none
+
+    # Realm -----------------------------------------------------------------------------------------------------------#
+    Realm:
+      type: object
+      description: External representation of a realm entity
+      properties:
+        id:
+          type: string
+          description: The ID of the realm
+        name:
+          type: string
+          description: the name of the realm
+        settings:
+          $ref: '#/components/schemas/RealmSettings'
+
+    RealmSettings:
+      type: object
+      description: The configured settings of a realm
+      properties:
+        file.upload.restriction.type:
+          $ref: '#/components/schemas/FileUploadRestrictionType'
+        file.upload.restriction:
+          type: array
+          description: The list of file extensions that are allowed or disallowed, depending on the value of
+            [file.upload.restriction.type](#/components/schemas/FileUploadRestrictionType)
+          default: []
+          items:
+            type: string
+        file.upload.av.size.limit:
+          type: integer
+          format: int64
+          description: The maximum file size in bytes that is allowed to be uploaded. Configured for the entire instance
+            and not per realm. This is actually a config setting and not a realm setting, but it is included here for
+            ease of use.
+        file.upload.av.whitelist:
+          type: array
+          items:
+            type: string
+          description: The set of arbitrary identifiers that are allowed to bypass the virus scan when uploading. 
+            Values must be unique and are case-sensitive.
+          default: []
+        file.url.lifetime.seconds:
+          type: integer
+          format: int64
+          description: The lifetime of the isTemporary URLs to files in seconds.
+          default: 600
+          minimum: 1
+
+    FileUploadRestrictionType:
+      type: string
+      description: The type of file upload restriction
+      default: whitelist
+      enum:
+        - none
+        - whitelist
+        - blacklist
+
+    RealmSettingKey:
+      type: string
+      description: The available realm setting keys. Configurable per realm.
+      enum:
+        - file.upload.restriction.type
+        - file.upload.restriction
+        - file.upload.av.whitelist
+        - file.url.lifetime.seconds
+
+    ConfigSettingKey:
+      type: string
+      description: The available config setting keys. These are application-wide and can not be configured via API.
+      enum:
+        - file.upload.av.size.limit
+
+        # Health ----------------------------------------------------------------------------------------------------------#
+    Health:
+      type: object
+      description: Representation of the health of the FM service as well as all connected middleware
+      properties:
+        status:
+          $ref: '#/components/schemas/HealthStatus'
+        components:
+          $ref: '#/components/schemas/HealthComponents'
+      required:
+        - status
+        - components
+
+    HealthComponents:
+      type: object
+      description: Information about the statuses of all health components
+      properties:
+        FM:
+          $ref: '#/components/schemas/ComponentStatus'
+        DB:
+          $ref: '#/components/schemas/ComponentStatus'
+        AV:
+          $ref: '#/components/schemas/ComponentStatus'
+        S3:
+          $ref: '#/components/schemas/ComponentStatus'
+        CONV:
+          $ref: '#/components/schemas/ComponentStatus'
+      required:
+        - FM
+        - DB
+        - AV
+        - S3
+        - CONV
+
+    ComponentStatus:
+      type: object
+      description: The health status of a health component
+      properties:
+        status:
+          $ref: '#/components/schemas/HealthStatus'
+        details:
+          $ref: '#/components/schemas/HealthStatusDetails'
+      required:
+        - status
+
+    HealthStatusDetails:
+      type: object
+      description: The detailed health status of a health component
+      properties:
+        version:
+          type: string
+          description: The version of the component
+      required:
+        - version
+
+    HealthStatus:
+      type: string
+      description: The possible health statuses of a component
+      enum:
+        - UP
+        - DOWN
+
+    # Token -----------------------------------------------------------------------------------------------------------#
+    ResourceToken:
+      type: object
+      description: Wrapper DTO for a temporary download token for a resource/file
+      properties:
+        jwt:
+          type: string
+          description: The token in JWT format
+        expires:
+          type: string
+          format: date-time
+          description: The date the token expires
+        relativeUrl:
+          type: string
+          description: The relative URL to download the resource/file using the token
+
+    # Exception -------------------------------------------------------------------------------------------------------#
+    Exception:
+      type: object
+      description: External representation of an error encountered in the application
+      properties:
+        exception:
+          type: string
+          description: The name of the exception that was thrown
+        message:
+          type: string
+          description: The message of the exception that was thrown
+        status:
+          type: integer
+          description: The HTTP status associated with the error
+        code:
+          type: integer
+          description: The error code associated with the error
+          default: 1
+        params:
+          type: array
+          items:
+            type: string
+          description: The parameters of the exception, e.g. for parameterized error messages in subsequent processing
+          default: []
+      required:
+        - exception
+        - message
+        - status
+        - code
+
+    # Utilities -------------------------------------------------------------------------------------------------------#
+    DuplicatesRequest:
+      type: object
+      description: A request to retrieve all possible duplicates of given sets of CRC32 and MD5 checksums
+      properties:
+        crc32:
+          type: array
+          items:
+              type: integer
+              format: int64
+          description: The crc32 checksums of the files to search for duplicates of
+          default: []
+        md5:
+          type: array
+          items:
+            type: string
+          description: The md5 checksums of the files to search for duplicates of
+          default: []
+
+    Page:
+      type: object
+      description: A page of search results
+      properties:
+        content:
+          type: array
+          description: The actual search results
+          items:
+            $ref: '#/components/schemas/Document'
+        page:
+          type: integer
+          description: The current page number of the search result
+        totalPages:
+          type: integer
+          description: The total number of pages of the search result
+        totalElements:
+          type: integer
+          format: int64
+          description: The total number of search results
+
+    PageRequest:
+      type: object
+      properties:
+        page:
+          type: integer
+          default: 0
+          minimum: 0
+          description: The page number of the search result
+        size:
+          type: integer
+          default: 25
+          description: The number of search results per page
+        sort:
+          $ref: '#/components/schemas/Sort'
+
+    Sort:
+      type: object
+      properties:
+        direction:
+          description: The direction to sort by
+          type: string
+          enum:
+            - ASC
+            - DESC
+        properties:
+          description: The properties to sort by
+          type: array
+          items:
+            type: string
+
+    RequestHeaders:
+      type: string
+      description: The possible headers of a request to the file management service
+      enum:
+        - X-Realm-ID
+        - X-AV-Privilege
+
+  # SECURITY SCHEMES --------------------------------------------------------------------------------------------------#
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  # RESPONSES ---------------------------------------------------------------------------------------------------------#
+  responses:
+    # Error -----------------------------------------------------------------------------------------------------------#
+    Error:
+      description: An unexpected error occurred
+      content:
+        application/json; charset=utf-8:
+          schema:
+            $ref: '#/components/schemas/Exception'
+

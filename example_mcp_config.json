@@ -11,7 +11,15 @@
       ],
       "env": {
         "PYTHONPATH": "/home/ty/Repositories/memvid_mcp_server",
-        "PYTHONWARNINGS": "ignore"
+        "PYTHONWARNINGS": "ignore",
+        "FM_UPLOAD_ENABLED": "false",
+        "FM_API_BASE_URL": "https://your-fm-api.example.com",
+        "FM_REALM_ID": "your-realm-id",
+        "FM_FOLDER_ID": "your-folder-id",
+        "FM_KEYCLOAK_URL": "https://your-keycloak.example.com",
+        "FM_KEYCLOAK_REALM": "your-keycloak-realm",
+        "FM_KEYCLOAK_CLIENT_ID": "your-client-id",
+        "FM_KEYCLOAK_CLIENT_SECRET": "your-client-secret"
       }
     }
   }

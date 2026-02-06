@@ -2,6 +2,8 @@
 
 A Model Context Protocol (MCP) server that exposes Memvid video memory functionalities to AI clients. This server allows you to encode text, PDFs, and other content into video memory format for efficient semantic search and chat interactions.
 
+**NEW**: Remote storage integration with File Management API for per-project video memory backup and synchronization.
+
 ## 🌟 Features
 
 - **Text Encoding**: Add text chunks or full text documents to video memory
@@ -9,6 +11,9 @@ A Model Context Protocol (MCP) server that exposes Memvid video memory functiona
 - **Video Memory Building**: Generate compressed video representations of your data
 - **Semantic Search**: Query your encoded data using natural language
 - **Chat Interface**: Have conversations with your encoded knowledge base
+- **Remote Storage**: Automatically upload video memories to File Management API (optional)
+- **Background Uploads**: Non-blocking uploads that don't interrupt your workflow
+- **Remote Management**: List, download, and manage remotely stored memories
 - **Multi-Connection Support**: Handle multiple concurrent client connections
 - **Comprehensive Logging**: Detailed logging to stderr for debugging
 - **Graceful Shutdown**: Proper resource cleanup and signal handling
@@ -88,10 +93,43 @@ cp example_mcp_config.json ~/.config/claude-desktop/config.json
 
 3. Restart Claude Desktop to load the server.
 
+### File Management API Integration (Optional)
+
+To enable automatic remote storage of video memories, add these environment variables to your MCP config:
+
+```json
+"env": {
+  "PYTHONPATH": "/home/ty/Repositories/memvid_mcp_server",
+  "PYTHONWARNINGS": "ignore",
+  "FM_UPLOAD_ENABLED": "true",
+  "FM_API_BASE_URL": "https://your-fm-api.example.com",
+  "FM_REALM_ID": "your-realm-id",
+  "FM_FOLDER_ID": "your-folder-id",
+  "FM_KEYCLOAK_URL": "https://your-keycloak.example.com",
+  "FM_KEYCLOAK_REALM": "your-keycloak-realm",
+  "FM_KEYCLOAK_CLIENT_ID": "your-client-id",
+  "FM_KEYCLOAK_CLIENT_SECRET": "your-client-secret"
+}
+```
+
+**Environment Variables:**
+- `FM_UPLOAD_ENABLED`: Set to "true" to enable remote uploads (default: "false")
+- `FM_API_BASE_URL`: Base URL of the File Management API
+- `FM_REALM_ID`: The realm ID for file storage
+- `FM_FOLDER_ID`: Parent folder ID for storing video memories
+- `FM_KEYCLOAK_URL`: Keycloak server URL for authentication
+- `FM_KEYCLOAK_REALM`: Keycloak realm name
+- `FM_KEYCLOAK_CLIENT_ID`: OAuth2 client ID
+- `FM_KEYCLOAK_CLIENT_SECRET`: OAuth2 client secret
+
+**Note**: When FM integration is enabled, video memories are automatically uploaded in the background after successful builds. You can also manually trigger uploads and manage remote memories using the provided tools.
+
 ## 🛠️ Available Tools
 
+### Core Memory Tools
+
 ### `get_server_status`
-Check the current status of the memvid server including version information.
+Check the current status of the memvid server including version information and FM integration status.
 
 ### `add_chunks`
 Add a list of text chunks to the encoder.
@@ -107,7 +145,7 @@ Process and add a PDF file to the encoder.
 - **pdf_path**: Path to the PDF file
 
 ### `build_video`
-Build the video memory from all added content.
+Build the video memory from all added content. **Automatically triggers remote upload if FM integration is enabled.**
 - **video_path**: Output path for the video file
 - **index_path**: Output path for the index file
 - **codec**: Video codec to use ('h265' or 'h264', default: 'h265')
@@ -124,11 +162,45 @@ Perform semantic search on the built video memory.
 Have a conversation with your encoded knowledge base.
 - **message**: Message to send to the chat system
 
+### File Management API Tools (Optional)
+
+These tools are only available when FM integration is configured via environment variables.
+
+### `upload_video_memory`
+Manually trigger upload of video memory files to remote storage.
+- **video_path**: Path to the video memory file (.mp4)
+- **index_path**: Path to the index file (.json)
+- **project_name**: Optional project name for organization
+
+### `list_remote_memories`
+List video memories stored remotely in the File Management API.
+- **project_name**: Optional project name to filter by
+
+### `download_video_memory`
+Download video memory files from remote storage to local machine.
+- **video_doc_id**: Document ID of the video file to download
+- **output_dir**: Optional directory to save files (defaults to library directory)
+
+### `get_upload_status`
+Get status of background upload tasks.
+- **task_id**: Optional task ID to check specific upload. If None, returns all tasks.
+
 ## 📖 Usage Workflow
 
+### Basic Workflow
 1. **Add Content**: Use `add_text`, `add_chunks`, or `add_pdf` to add your data
 2. **Build Video**: Use `build_video` to create the video memory representation
 3. **Search or Chat**: Use `search_memory` for queries or `chat_with_memvid` for conversations
+
+### With Remote Storage (FM Integration Enabled)
+1. **Add Content**: Use `add_text`, `add_chunks`, or `add_pdf` to add your data
+2. **Build Video**: Use `build_video` - this automatically uploads to remote storage in the background
+3. **Check Upload Status**: Use `get_upload_status` to monitor background uploads
+4. **List Remote Memories**: Use `list_remote_memories` to see what's stored remotely
+5. **Download Memories**: Use `download_video_memory` to retrieve memories from remote storage
+6. **Search or Chat**: Use `search_memory` or `chat_with_memvid` as usual
+
+**Note**: Uploads happen in the background and won't block your workflow. Local files are always saved regardless of upload success.
 
 ## 🔧 Development
 
@@ -173,6 +245,36 @@ The server implements comprehensive stdout redirection to prevent any library ou
 - **"Memvid not available"**: Install the memvid package: `uv add memvid`
 - **"Video memory not built"**: Run `build_video` before searching or chatting
 - **"LLM not available"**: Expected warning - memvid will work without external LLM providers
+- **"FM integration not configured"**: Set FM environment variables to enable remote storage features
+
+### File Management (FM) Integration Issues
+
+1. **Uploads Not Working**
+   - Check that `FM_UPLOAD_ENABLED=true` is set
+   - Verify all FM environment variables are correctly configured
+   - Check logs for authentication errors
+   - Verify network connectivity to FM API and Keycloak
+   - Use `get_upload_status` to see error details
+
+2. **Authentication Failures**
+   - Verify Keycloak URL, realm, client ID, and secret are correct
+   - Check that the client has proper permissions in Keycloak
+   - Ensure the realm exists in the File Management system
+
+3. **Upload Queue Errors**
+   - Uploads happen in background and won't block video building
+   - Check logs for detailed error messages
+   - Failed uploads can be retried manually with `upload_video_memory`
+
+4. **Missing Remote Memories**
+   - Verify you're using the correct `FM_REALM_ID` and `FM_FOLDER_ID`
+   - Check that uploads completed successfully with `get_upload_status`
+   - Use `list_remote_memories` to see what's actually stored
+
+5. **Large File Upload Timeouts**
+   - Default timeout is 5 minutes for uploads
+   - Check network bandwidth and stability
+   - Consider using a closer/faster FM API endpoint
 
 ## 📄 License
 

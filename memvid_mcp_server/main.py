@@ -58,6 +58,19 @@ except ImportError:
     # Fallback for direct script execution
     from docker_lifecycle import DockerLifecycleManager
 
+# Import FM integration modules
+try:
+    from .fm_config import load_fm_config
+    from .fm_auth import FMAuthManager
+    from .fm_upload import UploadManager
+    FM_AVAILABLE = True
+except ImportError as e:
+    logger.warning(f"FM integration not available: {e}")
+    load_fm_config = None
+    FMAuthManager = None
+    UploadManager = None
+    FM_AVAILABLE = False
+
 # Configure logging to stderr for MCP compatibility
 logging.basicConfig(
     level=logging.INFO,
@@ -124,6 +137,11 @@ class ServerState:
         self.faiss_type: str = "none"
         # Library directory path (where the server is installed)
         self.library_dir = self._detect_library_directory()
+        # FM integration
+        self.fm_config = None
+        self.fm_auth_manager = None
+        self.fm_upload_manager: Optional[UploadManager] = None
+        self._initialize_fm_integration()
 
     def _detect_library_directory(self) -> str:
         """Detect the library directory relative to the server installation."""
@@ -143,6 +161,31 @@ class ServerState:
             fallback_dir = os.path.join(os.getcwd(), "library")
             os.makedirs(fallback_dir, exist_ok=True)
             return fallback_dir
+
+    def _initialize_fm_integration(self) -> None:
+        """Initialize File Management integration if configured."""
+        if not FM_AVAILABLE:
+            logger.info("FM integration modules not available")
+            return
+
+        try:
+            self.fm_config = load_fm_config()
+            if self.fm_config:
+                self.fm_auth_manager = FMAuthManager(
+                    keycloak_url=self.fm_config.keycloak_url,
+                    realm=self.fm_config.keycloak_realm,
+                    client_id=self.fm_config.keycloak_client_id,
+                    client_secret=self.fm_config.keycloak_client_secret,
+                )
+                self.fm_upload_manager = UploadManager(
+                    self.fm_config, self.fm_auth_manager
+                )
+                self.fm_upload_manager.start()
+                logger.info("✅ FM integration initialized and upload manager started")
+            else:
+                logger.info("FM integration not configured (no environment variables)")
+        except Exception as e:
+            logger.error(f"Failed to initialize FM integration: {e}", exc_info=True)
 
     def resolve_file_path(self, path: str, file_type: str = "video") -> str:
         """Resolve file path, using library directory for relative paths."""
@@ -216,7 +259,15 @@ class ServerState:
         logger.info("Cleaning up memvid MCP server")
 
         try:
-            # Clean up Docker resources first
+            # Stop FM upload manager first
+            if self.fm_upload_manager:
+                try:
+                    await self.fm_upload_manager.stop()
+                    logger.info("FM upload manager stopped")
+                except Exception as e:
+                    logger.warning(f"FM upload manager cleanup failed: {e}")
+
+            # Clean up Docker resources
             try:
                 with redirect_stdout(sys.stderr):
                     await self.docker_manager.cleanup()
@@ -495,6 +546,24 @@ async def build_video(
                 _server_state.set_active_memory(resolved_video_path, resolved_index_path)
 
                 logger.info(f"Successfully built and loaded video memory: {resolved_video_path}")
+
+                # Queue upload if FM integration is enabled
+                if _server_state.fm_upload_manager:
+                    try:
+                        # Extract project name from video path
+                        from pathlib import Path
+                        project_name = Path(resolved_video_path).stem.replace("_memory", "")
+                        
+                        task_id = _server_state.fm_upload_manager.queue_upload(
+                            video_path=resolved_video_path,
+                            index_path=resolved_index_path,
+                            project_name=project_name,
+                        )
+                        logger.info(f"Queued FM upload task: {task_id}")
+                    except Exception as upload_e:
+                        logger.warning(f"Failed to queue FM upload: {upload_e}")
+                        # Don't fail the build if upload queue fails
+
             except Exception as e:
                 logger.error(f"Failed to initialize retriever/chat after build: {e}")
                 # Build succeeded but initialization failed
@@ -892,11 +961,197 @@ async def get_server_status(ctx: Context) -> dict[str, Any]:
             "available_memories": len(_server_state.available_memories),
             "memory_library": list(_server_state.available_memories.keys()),
             "active_connections": len(_server_state.connections),
-            "docker_status": docker_status
+            "docker_status": docker_status,
+            "fm_integration_enabled": _server_state.fm_upload_manager is not None
         }
         return status
     except Exception as e:
         logger.error(f"Failed to get server status: {e}")
+        return {"status": "error", "message": str(e)}
+
+
+@mcp.tool()
+async def upload_video_memory(
+    ctx: Context, video_path: str, index_path: str, project_name: Optional[str] = None
+) -> dict[str, Any]:
+    """Manually trigger upload of video memory files to File Management API.
+
+    Args:
+        video_path: Path to the video memory file (.mp4)
+        index_path: Path to the index file (.json)
+        project_name: Optional project name for organization
+
+    Returns:
+        Status dictionary with upload information
+    """
+    try:
+        if not _server_state.fm_upload_manager:
+            return {
+                "status": "error",
+                "message": "FM integration not configured. Set FM environment variables."
+            }
+
+        # Resolve paths
+        resolved_video_path = _server_state.resolve_file_path(video_path, "video")
+        resolved_index_path = _server_state.resolve_file_path(index_path, "index")
+
+        # Queue upload
+        task_id = _server_state.fm_upload_manager.queue_upload(
+            video_path=resolved_video_path,
+            index_path=resolved_index_path,
+            project_name=project_name,
+        )
+
+        logger.info(f"Queued manual upload task: {task_id}")
+
+        return {
+            "status": "success",
+            "message": "Upload queued successfully",
+            "task_id": task_id,
+            "video_path": resolved_video_path,
+            "index_path": resolved_index_path,
+        }
+    except Exception as e:
+        logger.error(f"Failed to queue upload: {e}")
+        return {"status": "error", "message": str(e)}
+
+
+@mcp.tool()
+async def list_remote_memories(
+    ctx: Context, project_name: Optional[str] = None
+) -> dict[str, Any]:
+    """List video memories stored remotely in File Management API.
+
+    Args:
+        project_name: Optional project name to filter by
+
+    Returns:
+        Status dictionary with list of remote memories
+    """
+    try:
+        if not _server_state.fm_upload_manager:
+            return {
+                "status": "error",
+                "message": "FM integration not configured. Set FM environment variables."
+            }
+
+        memories = await _server_state.fm_upload_manager.fm_client.list_remote_memories(
+            project_name=project_name
+        )
+
+        return {
+            "status": "success",
+            "count": len(memories),
+            "memories": memories,
+        }
+    except Exception as e:
+        logger.error(f"Failed to list remote memories: {e}")
+        return {"status": "error", "message": str(e)}
+
+
+@mcp.tool()
+async def download_video_memory(
+    ctx: Context, video_doc_id: str, output_dir: Optional[str] = None
+) -> dict[str, Any]:
+    """Download video memory files from File Management API.
+
+    Args:
+        video_doc_id: Document ID of the video file to download
+        output_dir: Optional directory to save files (defaults to library directory)
+
+    Returns:
+        Status dictionary with download information
+    """
+    try:
+        if not _server_state.fm_upload_manager:
+            return {
+                "status": "error",
+                "message": "FM integration not configured. Set FM environment variables."
+            }
+
+        # Use library directory if not specified
+        if output_dir is None:
+            output_dir = _server_state.library_dir
+        else:
+            output_dir = _server_state.resolve_file_path(output_dir, "video")
+
+        video_path, index_path = await _server_state.fm_upload_manager.fm_client.download_video_memory(
+            video_doc_id=video_doc_id, output_dir=output_dir
+        )
+
+        if video_path and index_path:
+            return {
+                "status": "success",
+                "message": "Video memory downloaded successfully",
+                "video_path": video_path,
+                "index_path": index_path,
+            }
+        else:
+            return {
+                "status": "error",
+                "message": "Download failed - see logs for details",
+            }
+    except Exception as e:
+        logger.error(f"Failed to download video memory: {e}")
+        return {"status": "error", "message": str(e)}
+
+
+@mcp.tool()
+async def get_upload_status(ctx: Context, task_id: Optional[str] = None) -> dict[str, Any]:
+    """Get status of FM upload tasks.
+
+    Args:
+        task_id: Optional task ID to get specific task status. If None, returns all tasks.
+
+    Returns:
+        Status dictionary with upload task information
+    """
+    try:
+        if not _server_state.fm_upload_manager:
+            return {
+                "status": "error",
+                "message": "FM integration not configured. Set FM environment variables."
+            }
+
+        if task_id:
+            task = _server_state.fm_upload_manager.get_upload_status(task_id)
+            if task:
+                return {
+                    "status": "success",
+                    "task": {
+                        "task_id": task_id,
+                        "status": task.status.value,
+                        "video_path": task.video_path,
+                        "index_path": task.index_path,
+                        "project_name": task.project_name,
+                        "created_at": task.created_at.isoformat(),
+                        "completed_at": task.completed_at.isoformat() if task.completed_at else None,
+                        "error_message": task.error_message,
+                        "video_doc_id": task.video_doc_id,
+                        "index_doc_id": task.index_doc_id,
+                    },
+                }
+            else:
+                return {"status": "error", "message": f"Task {task_id} not found"}
+        else:
+            all_tasks = _server_state.fm_upload_manager.get_all_uploads()
+            tasks_info = [
+                {
+                    "status": task.status.value,
+                    "video_path": task.video_path,
+                    "project_name": task.project_name,
+                    "created_at": task.created_at.isoformat(),
+                    "completed_at": task.completed_at.isoformat() if task.completed_at else None,
+                }
+                for task in all_tasks
+            ]
+            return {
+                "status": "success",
+                "count": len(tasks_info),
+                "tasks": tasks_info,
+            }
+    except Exception as e:
+        logger.error(f"Failed to get upload status: {e}")
         return {"status": "error", "message": str(e)}
 
 
