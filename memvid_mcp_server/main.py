@@ -64,12 +64,18 @@ try:
     from .fm_auth import FMAuthManager
     from .fm_upload import UploadManager
     FM_AVAILABLE = True
-except ImportError as e:
-    logger.warning(f"FM integration not available: {e}")
-    load_fm_config = None
-    FMAuthManager = None
-    UploadManager = None
-    FM_AVAILABLE = False
+except ImportError:
+    try:
+        # Fallback for direct script execution
+        from fm_config import load_fm_config
+        from fm_auth import FMAuthManager
+        from fm_upload import UploadManager
+        FM_AVAILABLE = True
+    except ImportError as e:
+        load_fm_config = None
+        FMAuthManager = None
+        UploadManager = None
+        FM_AVAILABLE = False
 
 # Configure logging to stderr for MCP compatibility
 logging.basicConfig(
